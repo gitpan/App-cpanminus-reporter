@@ -3,7 +3,7 @@ package App::cpanminus::reporter;
 use warnings;
 use strict;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 use Carp ();
 use File::Spec     3.19;
@@ -294,25 +294,6 @@ documentation instead. Please look there for a much comprehensive documentation.
 =head1 DESCRIPTION
 
 See L<cpanm-reporter>.
-
-
-=head1 BUGS AND LIMITATIONS
-
-=head2 Time of Check x Time of Use
-
-This is a standalone tool that reads cpanm's C<build.log> file, meaning
-it can potentially be run any time after cpanm has done its thing. As such,
-you must be cautious to only run this tool I<right after> you run cpanm,
-otherwise your whole environment may have changed, rendering the report
-useless - maybe even turning it into a disservice.
-
-B<< As such, we will *only* parse build.log files last modified up to 30
-minutes before. >> You can override this by passing the C<--force> flag
-to cpanm-reporter, but please take good care to avoid sending bogus reports.
-
-Please report any bugs or feature requests to
-C<bug-app-cpanminus-reporter@rt.cpan.org>, or through the web interface at
-L<http://rt.cpan.org>.
 
 
 =head1 AUTHOR

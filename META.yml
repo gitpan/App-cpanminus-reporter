@@ -32,4 +32,4 @@ requires:
   Test::More: 0
   Test::Reporter: 1.54
   Try::Tiny: 0
-version: 0.01
+version: 0.02
