@@ -11,6 +11,7 @@ WriteMakefile(
     PREREQ_PM => {
         'CPAN::Meta::Converter'         => 0,
         'CPAN::Testers::Common::Client' => 0.02,
+        'Capture::Tiny'                 => 0,
         'Carp'                          => 0,
         'Config::Tiny'                  => 2.08,
         'File::HomeDir'                 => 0.58,
@@ -24,6 +25,7 @@ WriteMakefile(
         'Test::More'                    => 0,
         'Test::Reporter'                => '1.54',
         'Try::Tiny'                     => 0,
+        'URI'                           => 0,
     },
     EXE_FILES => [ 'bin/cpanm-reporter' ],
     dist      => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
