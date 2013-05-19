@@ -31,10 +31,6 @@
          }
       },
       "runtime" : {
-         "recommends" : {
-            "LWP::Protocol::https" : "0",
-            "Test::Reporter::Transport::Metabase" : "0"
-         },
          "requires" : {
             "CPAN::Meta::Converter" : "0",
             "CPAN::Testers::Common::Client" : "0.06",
@@ -45,11 +41,13 @@
             "File::Spec" : "3.19",
             "Getopt::Long" : "0",
             "IO::Prompt::Tiny" : "0",
+            "LWP::Protocol::https" : "0",
             "Metabase::Resource" : "0",
             "Parse::CPAN::Meta" : "0",
             "Pod::Usage" : "0",
             "Test::More" : "0",
             "Test::Reporter" : "1.54",
+            "Test::Reporter::Transport::Metabase" : "0",
             "Try::Tiny" : "0",
             "URI" : "0"
          }
@@ -61,5 +59,5 @@
          "url" : "http://github.com/garu/App-cpanminus-reporter"
       }
    },
-   "version" : "0.08"
+   "version" : "0.09"
 }

@@ -3,7 +3,7 @@ package App::cpanminus::reporter;
 use warnings;
 use strict;
 
-our $VERSION = '0.08';
+our $VERSION = '0.09';
 
 use Carp ();
 use File::Spec     3.19;
@@ -26,7 +26,7 @@ sub new {
   $self->quiet( $params{quiet} );
 
   my $config = CPAN::Testers::Common::Client::Config->new(
-    prompt => \&IO::Prompt::Tiny::prompt,
+    prompt => sub { local %ENV; IO::Prompt::Tiny::prompt(@_) },
   );
   if ($params{setup}) {
     $config->setup;
@@ -290,7 +290,7 @@ App::cpanminus::reporter - send cpanm output to CPAN Testers
 =head1 SYNOPSIS
 
 This is just the backend module, you are probably looking for L<cpanm-reporter>'s
-documentation instead. Please look there for a much comprehensive documentation.
+documentation instead. Please look there for a B<much more> comprehensive documentation.
 
 
 =head1 STILL HERE?
