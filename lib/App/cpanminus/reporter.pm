@@ -3,7 +3,7 @@ package App::cpanminus::reporter;
 use warnings;
 use strict;
 
-our $VERSION = '0.09';
+our $VERSION = '0.10';
 
 use Carp ();
 use File::Spec     3.19;
@@ -54,9 +54,20 @@ sub new {
 
   $self->config( $config );
 
+  if ($params{cpanm}) {
+    my $cpanm = $self->_cpanm( $params{cpanm} );
+    $params{only} =~ s/-\d+(\.\d+)*$//; # strip version from cpanm's "only" data
+
+    # FIXME: cpanm doesn't provide an accessor here, so
+    # we break encapsulation in order to make sure we
+    # always have the right paths.
+    $params{build_dir}     = $cpanm->{home};
+    $params{build_logfile} = $cpanm->{log};
+  }
+
   $self->build_dir(
     $params{build_dir}
-      || File::Spec->catdir( File::HomeDir->my_home, '.cpanm', 'latest-build' )
+      || File::Spec->catdir( File::HomeDir->my_home, '.cpanm' )
   );
 
   $self->build_logfile(
@@ -86,6 +97,8 @@ EOMESSAGE
   }
 
   $self->verbose( $params{verbose} || 0 );
+  $self->exclude( $params{exclude} );
+  $self->only( $params{only} );
 
   return $self;
 }
@@ -113,6 +126,29 @@ sub quiet {
   return $self->{_quiet};
 }
 
+sub only {
+  my ($self, $only) = @_;
+  if ($only) {
+    $only =~ s/::/-/g;
+    my @modules = split q{,}, $only;
+    foreach (@modules) { $_ =~ s/(\S+)-[\d.]+$/$1/ };
+
+    $self->{_only} = { map { $_ => 0 } @modules };
+  }
+  return $self->{_only};
+}
+
+sub exclude {
+  my ($self, $exclude) = @_;
+  if ($exclude) {
+    $exclude =~ s/::/-/g;
+    my @modules = split q{,}, $exclude;
+    foreach (@modules) { $_ =~ s/(\S+)-[\d.]+$/$1/ };
+
+    $self->{_exclude} = { map { $_ => 0 } @modules };
+  }
+  return $self->{_exclude};
+}
 
 sub build_dir {
   my ($self, $dir) = @_;
@@ -126,6 +162,11 @@ sub build_logfile {
   return $self->{_build_logfile};
 }
 
+sub _cpanm {
+  my ($self, $cpanm) = @_;
+  $self->{_cpanm_object} = $cpanm if $cpanm;
+  return $self->{_cpanm_object};
+}
 
 sub run {
   my $self = shift;
@@ -152,6 +193,7 @@ sub run {
 
     while (<$fh>) {
       if ( /^Fetching (\S+)/ ) {
+        next if /CHECKSUMS$/;
         $fetched = $1;
         $resource = $fetched unless $resource;
       }
@@ -175,9 +217,19 @@ sub run {
       if ( $recording and ( /^Result: (PASS|NA|FAIL|UNKNOWN)/ or /^-> (FAIL|OK)/ ) ) {
         my $result = $1;
         $result = 'PASS' if $result eq 'OK';
+
+        my $dist_without_version = $dist;
+        $dist_without_version =~ s/(\S+)-[\d.]+$/$1/;
+
         if (@test_output <= 2) {
             print "No test output found for '$dist'. Skipping...\n"
                 . "To send test reports, please make sure *NOT* to pass '-v' to cpanm or your build.log will contain no output to send.\n";
+        }
+        elsif ( defined $self->exclude && exists $self->exclude->{$dist_without_version} ) {
+            print "Skipping $dist as it's in the 'exclude' list...\n" if $self->verbose;
+        }
+        elsif ( defined $self->only && !exists $self->only->{$dist_without_version} ) {
+            print "Skipping $dist as it isn't in the 'only' list...\n" if $self->verbose;
         }
         else {
             my $report = $self->make_report($resource, $dist, $result, @test_output);
@@ -187,10 +239,10 @@ sub run {
     }
   };
 
-  print "Parsing $logfile...\n" unless $self->quiet;
+  print "Parsing $logfile...\n" if $self->verbose;
   $parser->();
-  print "No reports found.\n" unless $found and !$self->quiet;
-  print "Finished.\n" unless $self->quiet;
+  print "No reports found.\n" if !$found and $self->verbose;
+  print "Finished.\n" if $self->verbose;
 
   close $fh;
   return;
@@ -257,7 +309,15 @@ sub make_report {
     comments       => $client->email,
     via            => $client->via,
   );
-  $reporter->send() || die $reporter->errstr();
+
+  try {
+    $reporter->send() || die $reporter->errstr();
+  }
+  catch {
+    print "Error while sending this report, continuing with the next one...\n" unless $self->quiet;
+    print "DEBUG: @_" if $self->verbose;
+  };
+  return;
 }
 
 sub get_meta_for {

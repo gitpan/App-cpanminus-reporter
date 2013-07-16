@@ -9,10 +9,11 @@ Setup
 
 New to CPAN Testers' reporting? No problem! Just run:
 
-   > cpanm-reporter --setup
+    > cpanm-reporter --setup
 
 And we will walk you through everything you need :)
 
+(if you already use CPAN::Reporter, you can safely skip the setup)
 
 Usage
 -----
@@ -39,6 +40,10 @@ Optional Arguments
     --quiet (or -q)        As little output as possible (voids -v)
 
     --setup                Sets up the CPAN Testers configuration for you
+
+    --only=A::B,C::D,...   Only send reports for these modules
+
+    --exclude=A::B,...     Don't send reports for these modules
 
 
 For more information, please refer to the full documentation at:

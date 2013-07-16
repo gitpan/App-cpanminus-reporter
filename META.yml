@@ -38,4 +38,4 @@ requires:
   URI: 0
 resources:
   repository: http://github.com/garu/App-cpanminus-reporter
-version: 0.09
+version: 0.10
