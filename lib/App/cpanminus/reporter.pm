@@ -3,7 +3,7 @@ package App::cpanminus::reporter;
 use warnings;
 use strict;
 
-our $VERSION = '0.10';
+our $VERSION = '0.11';
 
 use Carp ();
 use File::Spec     3.19;
@@ -23,36 +23,11 @@ sub new {
   my ($class, %params) = @_;
   my $self = bless {}, $class;
 
-  $self->quiet( $params{quiet} );
-
-  my $config = CPAN::Testers::Common::Client::Config->new(
-    prompt => sub { local %ENV; IO::Prompt::Tiny::prompt(@_) },
+  $self->config(
+    CPAN::Testers::Common::Client::Config->new(
+      prompt => sub { local %ENV; IO::Prompt::Tiny::prompt(@_) },
+    )
   );
-  if ($params{setup}) {
-    $config->setup;
-    return;
-  }
-
-  my $config_filename = $config->get_config_filename;
-  if ( -e $config_filename ) {
-    if ( !$config->read ) {
-      print "Error reading CPAN Testers configuration file '$config_filename'. Aborting.";
-      return;
-    }
-  }
-  else {
-    my $answer = IO::Prompt::Tiny::prompt("CPAN Testers configuration file '$config_filename' not found. Would you like to set it up now? (y/n)", 'y');
-
-    if ( $answer =~ /^y/i ) {
-      $config->setup;
-    }
-    else {
-      print "The CPAN Testers configuration file is required. Aborting.\n";
-      return;
-    }
-  }
-
-  $self->config( $config );
 
   if ($params{cpanm}) {
     my $cpanm = $self->_cpanm( $params{cpanm} );
@@ -75,35 +50,29 @@ sub new {
       || File::Spec->catfile( $self->build_dir, 'build.log' )
   );
 
-  # as a safety mechanism, we only let people parse build.log files
-  # if they were generated up to 30 minutes (1800 seconds) ago,
-  # unless the user asks us to --force it.
-  my $mtime = (stat $self->build_logfile)[9];
-  if ( !$params{force} && $mtime && time - $mtime > 1800 ) {
-      die <<'EOMESSAGE';
-Fatal: build.log was created longer than 30 minutes ago.
-
-As a standalone tool, it is important that you run cpanm-reporter
-as soon as you finish cpanm, otherwise your system data may have
-changed, from new libraries to a completely different perl binary.
-
-Because of that, this app will *NOT* parse build.log files last modified
-longer than 30 minutes before the moment it runs.
-
-You can override this behaviour by touching the file or passing
-a --force flag to cpanm-reporter, but please take good care to avoid
-sending bogus reports.
-EOMESSAGE
+  foreach my $method ( qw(quiet verbose force exclude only) ) {
+    $self->$method( $params{$method} ) if exists $params{$method};
   }
-
-  $self->verbose( $params{verbose} || 0 );
-  $self->exclude( $params{exclude} );
-  $self->only( $params{only} );
 
   return $self;
 }
 
+sub setup { shift->config->setup }
+
 ## basic accessors ##
+
+sub author {
+  my ($self, $author) = @_;
+  $self->{_author} = $author if $author;
+  return $self->{_author};
+}
+
+sub distfile {
+  my ($self, $distfile) = @_;
+  $self->{_distfile} = $distfile if $distfile;
+  return $self->{_distfile};
+}
+
 
 sub config {
   my ($self, $config) = @_;
@@ -115,6 +84,12 @@ sub verbose {
   my ($self, $verbose) = @_;
   $self->{_verbose} = $verbose if $verbose;
   return $self->{_verbose};
+}
+
+sub force {
+  my ($self, $force) = @_;
+  $self->{_force} = $force if $force;
+  return $self->{_force};
 }
 
 sub quiet {
@@ -130,7 +105,7 @@ sub only {
   my ($self, $only) = @_;
   if ($only) {
     $only =~ s/::/-/g;
-    my @modules = split q{,}, $only;
+    my @modules = split /\s*,\s*/, $only;
     foreach (@modules) { $_ =~ s/(\S+)-[\d.]+$/$1/ };
 
     $self->{_only} = { map { $_ => 0 } @modules };
@@ -142,7 +117,7 @@ sub exclude {
   my ($self, $exclude) = @_;
   if ($exclude) {
     $exclude =~ s/::/-/g;
-    my @modules = split q{,}, $exclude;
+    my @modules = split /\s*,\s*/, $exclude;
     foreach (@modules) { $_ =~ s/(\S+)-[\d.]+$/$1/ };
 
     $self->{_exclude} = { map { $_ => 0 } @modules };
@@ -168,8 +143,61 @@ sub _cpanm {
   return $self->{_cpanm_object};
 }
 
+sub _check_cpantesters_config_data {
+  my $self     = shift;
+  my $config   = $self->config;
+  my $filename = $config->get_config_filename;
+
+  if (-e $filename) {
+    if (!$config->read) {
+      print "Error reading CPAN Testers configuration file '$filename'. Aborting.";
+      return;
+    }
+  }
+  else {
+    my $answer = IO::Prompt::Tiny::prompt("CPAN Testers configuration file '$filename' not found. Would you like to set it up now? (y/n)", 'y');
+
+    if ( $answer =~ /^y/i ) {
+      $config->setup;
+    }
+    else {
+      print "The CPAN Testers configuration file is required. Aborting.\n";
+      return;
+    }
+  }
+  return 1;
+}
+
+sub _check_build_log {
+  my $self = shift;
+
+  # as a safety mechanism, we only let people parse build.log files
+  # if they were generated up to 30 minutes (1800 seconds) ago,
+  # unless the user asks us to --force it.
+  my $mtime = (stat $self->build_logfile)[9];
+  if ( !$self->force && $mtime && time - $mtime > 1800 ) {
+      print <<'EOMESSAGE';
+Fatal: build.log was created longer than 30 minutes ago.
+
+As a standalone tool, it is important that you run cpanm-reporter
+as soon as you finish cpanm, otherwise your system data may have
+changed, from new libraries to a completely different perl binary.
+
+Because of that, this app will *NOT* parse build.log files last modified
+longer than 30 minutes before the moment it runs.
+
+You can override this behaviour by touching the file or passing
+a --force flag to cpanm-reporter, but please take good care to avoid
+sending bogus reports.
+EOMESSAGE
+    return;
+  }
+  return 1;
+}
+
 sub run {
   my $self = shift;
+  return unless ($self->_check_cpantesters_config_data and $self->_check_build_log);
 
   my $logfile = $self->build_logfile;
   open my $fh, '<', $logfile
@@ -184,8 +212,12 @@ sub run {
   my $found = 0;
   my $parser;
 
+  # we could go over 100 levels deep on the dependency track
+  no warnings 'recursion';
+
   $parser = sub {
     my ($dist, $resource) = @_;
+    (my $dist_vstring = $dist) =~ s/\-(\d+(?:\.\d)+)$/-v$1/ if $dist;
     my @test_output = ();
     my $recording = 0;
     my $str = '';
@@ -207,7 +239,7 @@ sub run {
         print "left $dep, $fetched\n" if $self->verbose;
         next;
       }
-      elsif ( $dist and /^Building and testing $dist/) {
+      elsif ( $dist and /^Building and testing (?:$dist|$dist_vstring)/) {
         print "recording $dist\n" if $self->verbose;
         $recording = 1;
       }
@@ -264,8 +296,9 @@ sub get_author {
 }
 
 
-sub make_report {
-  my ($self, $resource, $dist, $result, @test_output) = @_;
+# returns false in case of error (so, skip!)
+sub parse_uri {
+  my ($self, $resource) = @_;
 
   my $uri = URI->new( $resource );
   my $scheme = lc $uri->scheme;
@@ -285,12 +318,37 @@ sub make_report {
     return;
   }
 
+  # the 'LOCAL' user is reserved and should never send reports.
+  if ($author eq 'LOCAL') {
+    print "'LOCAL' user is reserved. Skipping resource '$resource'\n"
+      unless $self->quiet;
+    return;
+  }
+
+  $self->author($author);
+
+  $self->distfile(substr("$uri", index("$uri", $author)));
+
+  return 1;
+}
+
+sub make_report {
+  my ($self, $resource, $dist, $result, @test_output) = @_;
+
+  if ( index($dist, 'Local-') == 0 ) {
+      print "'Local::' namespace is reserved. Skipping resource '$resource'\n"
+        unless $self->quiet;
+      return;
+  }
+  return unless $self->parse_uri($resource);
+
+  my $author = $self->author;
   print "sending: ($resource, $author, $dist, $result)\n" unless $self->quiet;
 
   my $cpanm_version = $self->{_cpanminus_version} || 'unknown cpanm version';
   my $meta = $self->get_meta_for( $dist );
   my $client = CPAN::Testers::Common::Client->new(
-    author      => $author,
+    author      => $self->author,
     distname    => $dist,
     grade       => $result,
     via         => "App::cpanminus::reporter $VERSION ($cpanm_version)",
@@ -298,13 +356,12 @@ sub make_report {
     prereqs     => ($meta && ref $meta) ? $meta->{prereqs} : undef,
   );
 
-  my $dist_file = join '/' => ($uri->path_segments)[-2,-1];
   my $reporter = Test::Reporter->new(
     transport      => $self->config->transport_name,
     transport_args => $self->config->transport_args,
     grade          => $client->grade,
     distribution   => $dist,
-    distfile       => $dist_file,
+    distfile       => $self->distfile,
     from           => $self->config->email_from,
     comments       => $client->email,
     via            => $client->via,

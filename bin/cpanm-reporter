@@ -11,15 +11,21 @@ GetOptions( \%options, qw(build_dir=s build_logfile=s verbose|v force quiet|q
                           setup version help exclude=s only=s)
 ) or pod2usage();
 
-pod2usage if $options{help};
-
-if ($options{version}) {
-  print $App::cpanminus::reporter::VERSION . $/;
-  exit;
+if ($options{help}) {
+    pod2usage();
 }
-
-my $tester = App::cpanminus::reporter->new( %options );
-$tester->run() if $tester;
+elsif ($options{version}) {
+  print $App::cpanminus::reporter::VERSION . $/;
+}
+else {
+    my $tester = App::cpanminus::reporter->new( %options );
+    if ($options{setup}) {
+        $tester->setup();
+    }
+    else {
+        $tester->run();
+    }
+}
 
 __END__
 
@@ -99,6 +105,10 @@ In case you don't want to change just the base directory but the entire file's
 path and name, you can set this variable to point at the new 'config.ini' file.
 
 =back
+
+If you called C<cpanm-reporter --setup>, you can also set C<PERL_MM_USE_DEFAULT>
+to true and it will answer any prompted question automatically with its default
+value, if possible.
 
 =head1 CAVEATS
 
