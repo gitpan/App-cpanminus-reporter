@@ -3,7 +3,7 @@ package App::cpanminus::reporter;
 use warnings;
 use strict;
 
-our $VERSION = '0.11';
+our $VERSION = '0.12';
 
 use Carp ();
 use File::Spec     3.19;
@@ -50,8 +50,10 @@ sub new {
       || File::Spec->catfile( $self->build_dir, 'build.log' )
   );
 
-  foreach my $method ( qw(quiet verbose force exclude only) ) {
-    $self->$method( $params{$method} ) if exists $params{$method};
+  foreach my $option ( qw(quiet verbose force exclude only dry-run) ) {
+    my $method = $option;
+    $method =~ s/\-/_/g;
+    $self->$method( $params{$option} ) if exists $params{$option};
   }
 
   return $self;
@@ -99,6 +101,12 @@ sub quiet {
     $self->{_quiet} = 1;
   }
   return $self->{_quiet};
+}
+
+sub dry_run {
+  my ($self, $dry_run) = @_;
+  $self->{_dry_run} = $dry_run if $dry_run;
+  $self->{_dry_run};
 }
 
 sub only {
@@ -303,6 +311,7 @@ sub parse_uri {
   my $uri = URI->new( $resource );
   my $scheme = lc $uri->scheme;
   if (    $scheme ne 'http'
+      and $scheme ne 'https'
       and $scheme ne 'ftp'
       and $scheme ne 'cpan'
   ) {
@@ -367,6 +376,11 @@ sub make_report {
     via            => $client->via,
   );
 
+  if ($self->dry_run) {
+    print "not sending (drun run)\n" unless $self->quiet;
+    return;
+  }
+
   try {
     $reporter->send() || die $reporter->errstr();
   }
@@ -430,7 +444,7 @@ Breno G. de Oliveira  C<< <garu@cpan.org> >>
 
 =head1 LICENCE AND COPYRIGHT
 
-Copyright (c) 2012, Breno G. de Oliveira C<< <garu@cpan.org> >>. All rights reserved.
+Copyright (c) 2012-2015, Breno G. de Oliveira C<< <garu@cpan.org> >>. All rights reserved.
 
 This module is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself. See L<perlartistic>.
